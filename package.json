@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node build_metrics.cjs && vite",
+    "build": "node build_metrics.cjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import Papa from 'papaparse';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   AreaChart, Area, ComposedChart, Line, Legend
 } from 'recharts';
-import { Users, MapPin, Activity, Thermometer, Clock, TrendingUp, Globe, Wind, Droplets } from 'lucide-react';
+import { Users, Activity, Thermometer, Clock, TrendingUp, Globe, Wind, Droplets } from 'lucide-react';
 import './App.css';
 
 const StatCard = ({ title, value, subtext, icon: Icon, colorClass }) => (
@@ -45,7 +44,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 function App() {
-  const [data, setData] = useState([]);
+  const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentWeather, setCurrentWeather] = useState(null);
 
@@ -242,8 +241,8 @@ function App() {
             <Activity size={24} color="#3b82f6" />
           </div>
           <div className="title-text">
-            <h1>Manitou Incline Executive Dashboard</h1>
-            <p>Historical Session Metrics (YTD) & Weather Correlations</p>
+            <h1>Incline Intelligence Hub</h1>
+            <p>Historical Session Metrics (YTD) & Trailhead Conditions</p>
           </div>
         </div>
       </header>

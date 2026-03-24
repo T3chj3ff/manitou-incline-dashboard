@@ -54,7 +54,7 @@ function App() {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const validData = results.data.filter(row => row.StartDate && row.StartTime && row.FirstName);
+        const validData = results.data.filter(row => row.StartDate && row.StartTime && row.TotalQty);
         setData(validData);
         setLoading(false);
       },
@@ -126,16 +126,12 @@ function App() {
       }
 
       // Geo parsing
-      if (row.Address && row.Address !== '-None Specified-') {
-        const zipMatch = row.Address.match(/(\d{5})(?:-\d{4})?\s*$/);
-        if (zipMatch) {
-          const zip = zipMatch[1];
-          // Colorado zip codes start with 80 or 81
-          if (zip.startsWith('80') || zip.startsWith('81')) {
-            zipCountsCo[zip] = (zipCountsCo[zip] || 0) + qty;
-          } else {
-            zipCountsOut[zip] = (zipCountsOut[zip] || 0) + qty;
-          }
+      if (row.ZipCode) {
+        const zip = row.ZipCode;
+        if (zip.startsWith('80') || zip.startsWith('81')) {
+          zipCountsCo[zip] = (zipCountsCo[zip] || 0) + qty;
+        } else {
+          zipCountsOut[zip] = (zipCountsOut[zip] || 0) + qty;
         }
       }
     });

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Papa from 'papaparse';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  AreaChart, Area, ComposedChart, Line, Legend, Cell
+  AreaChart, Area, ComposedChart, Line, Legend
 } from 'recharts';
-import { Users, Calendar, MapPin, Activity, Thermometer, Clock, TrendingUp, Globe } from 'lucide-react';
+import { Users, MapPin, Activity, Thermometer, Clock, TrendingUp, Globe, Wind, Droplets } from 'lucide-react';
 import './App.css';
 
 const StatCard = ({ title, value, subtext, icon: Icon, colorClass }) => (
@@ -47,9 +47,19 @@ const CustomTooltip = ({ active, payload, label }) => {
 function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentWeather, setCurrentWeather] = useState(null);
 
   useEffect(() => {
-    Papa.parse('/master_data.csv', {
+    // Fetch live weather from Manitou Springs via Open-Meteo
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=38.8576&longitude=-104.9304&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FDenver')
+      .then(res => res.json())
+      .then(resData => {
+        if (resData && resData.current) {
+          setCurrentWeather(resData.current);
+        }
+      }).catch(err => console.error("Weather fetch error:", err));
+
+    Papa.parse('/minified_data.csv', {
       download: true,
       header: true,
       skipEmptyLines: true,
@@ -388,6 +398,46 @@ function App() {
                 <Bar dataKey="hikers" name="Hikers" fill="#ec4899" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="chart-card" role="region" aria-label="Current Weather Conditions">
+          <div className="chart-header">
+            <h3>Current Weather at Trailhead</h3>
+            <p>Live conditions from Manitou Springs, CO</p>
+          </div>
+          <div className="chart-container" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center', height: '100%', paddingBottom: '2rem' }}>
+            {currentWeather ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1rem', marginTop: '1rem' }}>
+                  <Thermometer size={48} color="#f59e0b" />
+                  <div>
+                    <h2 style={{ fontSize: '3.5rem', margin: 0, lineHeight: 1, color: '#f8fafc' }}>{Math.round(currentWeather.temperature_2m)}°F</h2>
+                    <p style={{ color: '#94a3b8', margin: 0, fontSize: '1.1rem', marginTop: '0.25rem' }}>Feels like {Math.round(currentWeather.apparent_temperature)}°F</p>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Wind size={24} color="#3b82f6" />
+                    <div>
+                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Wind Speed</p>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: '1.25rem', color: '#f8fafc' }}>{currentWeather.wind_speed_10m} mph</p>
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Droplets size={24} color="#10b981" />
+                    <div>
+                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Humidity</p>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: '1.25rem', color: '#f8fafc' }}>{currentWeather.relative_humidity_2m}%</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                <p>Loading live weather data...</p>
+              </div>
+            )}
           </div>
         </div>
 

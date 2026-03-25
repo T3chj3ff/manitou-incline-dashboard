@@ -51,7 +51,6 @@ function App() {
   useEffect(() => {
     // Fetch live weather from Manitou Springs via Open-Meteo
     fetch('https://api.open-meteo.com/v1/forecast?latitude=38.8576&longitude=-104.9304&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FDenver')
-    fetch('https://api.open-mete.com/v1/forecast?latitude=38.8576&longitude=-104.9304&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FDenver')
       .then(res => res.json())
       .then(resData => {
         if (resData && resData.current) {

@@ -51,170 +51,24 @@ function App() {
   useEffect(() => {
     // Fetch live weather from Manitou Springs via Open-Meteo
     fetch('https://api.open-meteo.com/v1/forecast?latitude=38.8576&longitude=-104.9304&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FDenver')
+    fetch('https://api.open-mete.com/v1/forecast?latitude=38.8576&longitude=-104.9304&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FDenver')
       .then(res => res.json())
       .then(resData => {
         if (resData && resData.current) {
           setCurrentWeather(resData.current);
         }
       }).catch(err => console.error("Weather fetch error:", err));
-
-    Papa.parse('/minified_data.csv', {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const validData = results.data.filter(row => row.StartDate && row.StartTime && row.TotalQty);
-        setData(validData);
+    fetch('/metrics.json')
+      .then(res => res.json())
+      .then(jsonMetrics => {
+        setMetrics(jsonMetrics);
         setLoading(false);
-      },
-      error: (err) => {
-        console.error("Error parsing CSV:", err);
+      })
+      .catch(err => {
+        console.error("Error loading metrics.json:", err);
         setLoading(false);
-      }
-    });
+      });
   }, []);
-
-  const metrics = useMemo(() => {
-    if (!data.length) return null;
-
-    let totalHikers = 0;
-    const dateDataMap = {};
-    const zipCountsCo = {};
-    const zipCountsOut = {};
-    
-    // New mappings for Monthly, Day of Week, and Peak Hours
-    const monthDataMap = {}; // e.g., 'Aug 25' -> count
-    const monthDateMap = {}; // for sorting '2025-08' -> 'Aug 25'
-    const peakHourMap = {};
-    const DOWDataMap = { 'Sun': 0, 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0 };
-
-    data.forEach(row => {
-      const qty = parseInt(row.TotalQty, 10) || 1;
-      totalHikers += qty;
-
-      // Time parsing
-      if (row.StartTime) {
-         const [hourStr] = row.StartTime.split(':');
-         let hourNum = parseInt(hourStr, 10);
-         if (!isNaN(hourNum)) {
-             const ampm = hourNum >= 12 ? 'PM' : 'AM';
-             const h = hourNum % 12 || 12;
-             const label = `${h} ${ampm}`;
-             if (!peakHourMap[hourNum]) {
-                peakHourMap[hourNum] = { label, hikers: 0, sortHour: hourNum };
-             }
-             peakHourMap[hourNum].hikers += qty;
-         }
-      }
-
-      // Date parsing
-      if (row.StartDate) {
-        if (!dateDataMap[row.StartDate]) {
-          dateDataMap[row.StartDate] = { date: row.StartDate, hikers: 0, temp: null };
-        }
-        dateDataMap[row.StartDate].hikers += qty;
-        
-        if (row.MaxTemp_F) {
-          dateDataMap[row.StartDate].temp = parseFloat(row.MaxTemp_F);
-        }
-
-        const d = new Date(row.StartDate);
-        if (!isNaN(d.getTime())) {
-          // Month logic
-          const monthKeyStr = d.toISOString().substring(0, 7); // '2025-08'
-          const monthLabel = `${d.toLocaleString('default', { month: 'short' })} '${d.getFullYear().toString().slice(-2)}`;
-          if (!monthDataMap[monthKeyStr]) {
-             monthDataMap[monthKeyStr] = { label: monthLabel, sortKey: monthKeyStr, hikers: 0 };
-          }
-          monthDataMap[monthKeyStr].hikers += qty;
-
-          // DOW logic
-          const dow = d.toLocaleString('default', { weekday: 'short' });
-          DOWDataMap[dow] += qty;
-        }
-      }
-
-      // Geo parsing
-      if (row.ZipCode) {
-        const zip = row.ZipCode;
-        if (zip.startsWith('80') || zip.startsWith('81')) {
-          zipCountsCo[zip] = (zipCountsCo[zip] || 0) + qty;
-        } else {
-          zipCountsOut[zip] = (zipCountsOut[zip] || 0) + qty;
-        }
-      }
-    });
-
-    const datesArray = Object.values(dateDataMap).sort((a, b) => new Date(a.date) - new Date(b.date));
-    const monthlyArray = Object.values(monthDataMap).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-    const peakHourArray = Object.values(peakHourMap).sort((a, b) => a.sortHour - b.sortHour);
-    
-    // Sort DOW appropriately
-    const dowOrder = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
-    const dowArray = Object.entries(DOWDataMap)
-      .sort((a, b) => dowOrder[a[0]] - dowOrder[b[0]])
-      .map(([label, hikers]) => ({ label, hikers }));
-    
-    let avgTemp = 0;
-    let daysWithTemp = 0;
-    datesArray.forEach(d => {
-      if (d.temp !== null && !isNaN(d.temp)) {
-        avgTemp += d.temp;
-        daysWithTemp++;
-      }
-    });
-    avgTemp = daysWithTemp ? (avgTemp / daysWithTemp).toFixed(1) : 'N/A';
-
-    const allZips = { ...zipCountsCo, ...zipCountsOut };
-    const topZip = Object.keys(allZips).length
-      ? Object.entries(allZips).sort((a,b) => b[1] - a[1])[0][0]
-      : 'N/A';
-
-    const peakHourMetric = peakHourArray.length 
-      ? [...peakHourArray].sort((a,b) => b.hikers - a.hikers)[0].label 
-      : 'N/A';
-
-    const topZipCoData = Object.entries(zipCountsCo)
-      .sort((a,b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([zip, count]) => ({ zip, hikers: count }));
-
-    const topZipOutData = Object.entries(zipCountsOut)
-      .sort((a,b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([zip, count]) => ({ zip, hikers: count }));
-
-    // Calculate Tourism Impact
-    const totalOutQty = Object.values(zipCountsOut).reduce((sum, count) => sum + count, 0);
-    const tourismPercent = totalHikers > 0 ? Math.round((totalOutQty / totalHikers) * 100) : 0;
-
-    // Calculate Latest MoM Growth
-    let momGrowth = 'N/A';
-    if (monthlyArray.length >= 2) {
-      const lastMonth = monthlyArray[monthlyArray.length - 1].hikers;
-      const prevMonth = monthlyArray[monthlyArray.length - 2].hikers;
-      if (prevMonth > 0) {
-        const growth = ((lastMonth - prevMonth) / prevMonth) * 100;
-        momGrowth = `${growth > 0 ? '+' : ''}${growth.toFixed(1)}%`;
-      }
-    }
-
-    return {
-      totalHikers,
-      uniqueDays: Object.keys(dateDataMap).length,
-      peakHourMetric,
-      topZip,
-      avgTemp,
-      tourismPercent,
-      momGrowth,
-      dateData: datesArray,
-      monthlyArray,
-      dowArray,
-      peakHourArray,
-      topZipCoData,
-      topZipOutData
-    };
-  }, [data]);
 
   if (loading) {
     return (

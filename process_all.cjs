@@ -1,6 +1,6 @@
 const fs = require('fs');
-const readline = require('readline');
 const path = require('path');
+const Papa = require('papaparse'); 
 
 const files = [
   path.join(__dirname, 'public/data.csv'), // Aug 2025
@@ -21,61 +21,61 @@ async function processFile(filePath, outStream) {
     return;
   }
 
-  const fileStream = fs.createReadStream(filePath);
-  const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity
-  });
+  const fileContent = fs.readFileSync(filePath, 'utf8');
+  const parsed = Papa.parse(fileContent, { skipEmptyLines: true });
 
+  let valid = 0;
   let inTargetSection = false;
 
-  for await (const line of rl) {
-    if (line.startsWith('SessionName2')) {
+  for (const row of parsed.data) {
+    if (!row || row.length < 5) continue;
+    
+    // The first column sometimes has weird quotes or newlines, or a BOM
+    let col0 = String(row[0]).trim().replace(/^\uFEFF/, '');
+    
+    // Toggle processing state based on headers
+    if (col0 === 'SessionName2') {
       inTargetSection = true;
-      continue; // Skip the raw header line itself
+      continue;
+    } else if (col0 === 'SessionName' || col0.startsWith('SessionName')) {
+      inTargetSection = false;
+      continue;
     }
 
-    if (!inTargetSection) {
-      continue; // Skip everything above the first SessionName2
+    if (!inTargetSection) continue;
+    if (!col0.includes('Manitou Incline')) continue;
+    
+    let startDate = String(row[3]).trim();
+    let startTime = String(row[7] || '').trim();
+    let address = String(row[12] || '').trim();
+    let totalQty = String(row[15] || '').trim();
+    let maxTemp = row.length > 16 ? String(row[17] || '').trim() : '';
+
+    if (!startDate || !startTime || !startTime.includes(':')) continue;
+
+    // Extract Zip
+    let zipCode = '';
+    if (address && address !== '-None Specified-') {
+      const match = address.match(/(\d{5})(?:-\d{4})?\s*$/);
+      if (match) zipCode = match[1];
     }
 
-    if (!line.trim()) continue;
-
-    // Use regex to properly split CSV respecting quotes
-    const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
-    const cols = line.split(regex).map(col => col.replace(/^"|"$/g, '').trim());
-
-    if (cols.length < 18) {
-      if (!cols[7] || !cols[7].includes(':')) continue;
+    // Default qtys
+    if (!totalQty || isNaN(parseInt(totalQty, 10))) {
+      totalQty = '1';
     }
 
-    const sessionName = cols[0];
-    const startDate = cols[3];
-    const startTime = cols[7];
-    const firstName = cols[9];
-    const email = cols[10];
-    const phone = cols[11];
-    let address = cols[12];
-    if (address && address.includes(',')) address = `"${address}"`; // re-quote if needed
-    const totalQty = cols[15];
-    const maxTemp = cols[17] || '';
-
-    // Filter out rows that are just summaries
-    if (!startTime || !startTime.includes(':')) continue;
-
-    const outLine = `"${sessionName}","${startDate}","${startTime}","${firstName}","${email}","${phone}",${address ? `"${address.replace(/"/g, '')}"` : '""'},"${totalQty}","${maxTemp}"`;
-    outStream.write(outLine + '\n');
+    outStream.write(`"${startDate}","${startTime}","${zipCode}","${totalQty}","${maxTemp}"\n`);
+    valid++;
   }
-  
-  console.log(`Processed: ${filePath}`);
+  console.log(`Processed: \x1b[36m${path.basename(filePath)}\x1b[0m -> extracted \x1b[32m${valid}\x1b[0m hikers`);
 }
 
 async function main() {
   const outStream = fs.createWriteStream(outputPath);
   
-  // Write Header
-  const cleanHeader = 'SessionName,StartDate,StartTime,FirstName,PrimaryEmail,PrimaryPhone,Address,TotalQty,MaxTemp_F';
-  outStream.write(cleanHeader + '\n');
+  // Header matching compressed schema
+  outStream.write('StartDate,StartTime,ZipCode,TotalQty,MaxTemp_F\n');
 
   for (const file of files) {
     await processFile(file, outStream);

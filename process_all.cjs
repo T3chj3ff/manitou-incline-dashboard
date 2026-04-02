@@ -87,9 +87,10 @@ async function main() {
   console.log('Fetching historical weather data from Open-Meteo...');
   const weatherMap = {};
   try {
-    // Dynamic end_date up to the end of the current year so it always just works
-    const endYear = new Date().getFullYear();
-    const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=38.8576&longitude=-104.9304&start_date=2025-08-01&end_date=${endYear}-12-31&daily=temperature_2m_max&temperature_unit=fahrenheit&timezone=America%2FDenver`);
+    // Dynamic end_date up to today so the Open-Meteo archive API doesn't throw an out-of-range error
+    const today = new Date();
+    const endDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=38.8576&longitude=-104.9304&start_date=2025-08-01&end_date=${endDateStr}&daily=temperature_2m_max&temperature_unit=fahrenheit&timezone=America%2FDenver`);
     const data = await res.json();
     if (data && data.daily && data.daily.time) {
       for (let i = 0; i < data.daily.time.length; i++) {

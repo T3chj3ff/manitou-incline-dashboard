@@ -3,16 +3,17 @@ const readline = require('readline');
 const path = require('path');
 
 const files = [
-  '/Users/foxtrot1/.gemini/antigravity/scratch/incline-dashboard/public/data.csv', // Aug 2025
+  path.join(__dirname, 'public/data.csv'), // Aug 2025
   '/Users/foxtrot1/Desktop/Session Details 93025.csv',
   '/Users/foxtrot1/Desktop/Session Details 103125.csv',
   '/Users/foxtrot1/Desktop/Session Details 113025.csv',
   '/Users/foxtrot1/Desktop/Session Details 123125.csv',
   '/Users/foxtrot1/Desktop/Session Details 13126.csv',
   '/Users/foxtrot1/Desktop/Session Details 22826.csv',
+  '/Users/foxtrot1/Downloads/Session Details March 2026.csv',
 ];
 
-const outputPath = '/Users/foxtrot1/.gemini/antigravity/scratch/incline-dashboard/public/master_data.csv';
+const outputPath = path.join(__dirname, 'public/master_data.csv');
 
 async function processFile(filePath, outStream) {
   if (!fs.existsSync(filePath)) {

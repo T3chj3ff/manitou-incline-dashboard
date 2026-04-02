@@ -1,3 +1,12 @@
+# Manitou Incline Dashboard
+
+> **Parent Entity:** GABAnode Lab LLC
+> **T3ch Lab Pillar:** 01_GovTech
+> **Current Stage:** Production
+> **Core Purpose:** GABAnode Lab LLC project defining unified infrastructure protocols.
+
+---
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

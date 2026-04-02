@@ -4,7 +4,11 @@ import {
   AreaChart, Area, ComposedChart, Line, Legend
 } from 'recharts';
 import { Users, Activity, Thermometer, Clock, TrendingUp, Globe, Wind, Droplets } from 'lucide-react';
+import { ComposableMap, Geographies, Geography, Tooltip as MapTooltip } from "react-simple-maps";
+import { scaleQuantile } from "d3-scale";
 import './App.css';
+
+const geoUrl = "/usa-states.json";
 
 const StatCard = ({ title, value, subtext, icon: Icon, colorClass }) => (
   <div className="stat-card" tabIndex="0" role="article" aria-label={`${title}: ${value}`}>
@@ -47,6 +51,14 @@ function App() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentWeather, setCurrentWeather] = useState(null);
+  const [tooltipContent, setTooltipContent] = useState("");
+
+  const colorScale = metrics?.stateMapData ? scaleQuantile()
+    .domain(metrics.stateMapData.map(d => d.value))
+    .range([
+      "#eff6ff", "#dbeafe", "#bfdbfe", "#93c5fd", 
+      "#60a5fa", "#3b82f6", "#2563eb", "#1d4ed8", "#1e40af"
+    ]) : null;
 
   useEffect(() => {
     // Fetch live weather from Manitou Springs via Open-Meteo
@@ -190,10 +202,13 @@ function App() {
                 <XAxis dataKey="date" stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="left" stroke="#3b82f6" axisLine={false} tickLine={false} />
                 <YAxis yAxisId="right" orientation="right" stroke="#10b981" axisLine={false} tickLine={false} />
+                <YAxis yAxisId="aqi" orientation="right" stroke="#ef4444" axisLine={false} tickLine={false} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 <Legend verticalAlign="top" height={36}/>
+                <Bar yAxisId="left" dataKey="precip" name="Rain/Snow (in)" fill="#60a5fa" opacity={0.5} barSize={20} />
                 <Area yAxisId="left" type="monotone" dataKey="hikers" name="Daily Hikers" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorHikers)" />
                 <Line yAxisId="right" type="monotone" dataKey="temp" name="Max Temp (°F)" stroke="#10b981" strokeWidth={2} dot={false} />
+                <Line yAxisId="aqi" type="monotone" dataKey="aqi" name="AQI (Smoke)" stroke="#ef4444" strokeWidth={2} dot={false} strokeDasharray="5 5" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

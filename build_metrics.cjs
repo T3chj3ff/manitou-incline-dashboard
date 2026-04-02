@@ -1,9 +1,24 @@
 const fs = require('fs');
 const readline = require('readline');
 const path = require('path');
+const zipState = require('zip-state');
 
 const csvPath = path.join(__dirname, 'public', 'master_data.csv');
 const jsonPath = path.join(__dirname, 'public', 'metrics.json');
+
+const stateCodeToName = {
+  "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+  "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+  "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+  "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+  "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri",
+  "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
+  "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio",
+  "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+  "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont",
+  "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+  "DC": "District of Columbia"
+};
 
 async function main() {
   console.log('Pre-compiling 110k CSV rows into a static JSON metrics file...');
@@ -15,6 +30,7 @@ async function main() {
   const dateDataMap = {};
   const zipCountsCo = {};
   const zipCountsOut = {};
+  const stateCounts = {};
   const monthDataMap = {};
   const peakHourMap = {};
   const DOWDataMap = { 'Sun': 0, 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0 };
@@ -28,7 +44,7 @@ async function main() {
     const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
     const cols = line.split(regex).map(col => col.replace(/^"|"$/g, '').trim());
     
-    // StartDate,StartTime,ZipCode,TotalQty,MaxTemp_F
+    // StartDate,StartTime,ZipCode,TotalQty,MaxTemp_F,Precipitation,AQI
     if (cols.length < 4) continue;
 
     const startDate = cols[0];
@@ -36,6 +52,8 @@ async function main() {
     const zipCode = cols[2];
     const totalQty = cols[3];
     const maxTemp = cols[4] || '';
+    const precip = cols[5] || '';
+    const aqi = cols[6] || '';
 
     const qty = parseInt(totalQty, 10) || 1;
     totalHikers += qty;
@@ -56,13 +74,13 @@ async function main() {
 
     if (startDate) {
       if (!dateDataMap[startDate]) {
-        dateDataMap[startDate] = { date: startDate, hikers: 0, temp: null };
+        dateDataMap[startDate] = { date: startDate, hikers: 0, temp: null, precip: null, aqi: null };
       }
       dateDataMap[startDate].hikers += qty;
       
-      if (maxTemp) {
-        dateDataMap[startDate].temp = parseFloat(maxTemp);
-      }
+      if (maxTemp) dateDataMap[startDate].temp = parseFloat(maxTemp);
+      if (precip) dateDataMap[startDate].precip = parseFloat(precip);
+      if (aqi) dateDataMap[startDate].aqi = parseInt(aqi, 10);
 
       const d = new Date(startDate);
       if (!isNaN(d.getTime())) {
@@ -85,6 +103,13 @@ async function main() {
         zipCountsCo[zipCode] = (zipCountsCo[zipCode] || 0) + qty;
       } else {
         zipCountsOut[zipCode] = (zipCountsOut[zipCode] || 0) + qty;
+        
+        // Lookup state for out-of-state zipcodes
+        const stateCode = zipState(zipCode);
+        if (stateCode && stateCodeToName[stateCode]) {
+          const stateName = stateCodeToName[stateCode];
+          stateCounts[stateName] = (stateCounts[stateName] || 0) + qty;
+        }
       }
     }
   }
@@ -128,6 +153,9 @@ async function main() {
     .slice(0, 10)
     .map(([zip, count]) => ({ zip, hikers: count }));
 
+  const stateMapData = Object.entries(stateCounts)
+    .map(([id, value]) => ({ id, value }));
+
   const totalOutQty = Object.values(zipCountsOut).reduce((sum, count) => sum + count, 0);
   const tourismPercent = totalHikers > 0 ? Math.round((totalOutQty / totalHikers) * 100) : 0;
 
@@ -154,7 +182,8 @@ async function main() {
     dowArray,
     peakHourArray,
     topZipCoData,
-    topZipOutData
+    topZipOutData,
+    stateMapData // newly added mapping data
   };
 
   fs.writeFileSync(jsonPath, JSON.stringify(payload));

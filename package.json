@@ -10,11 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "d3-scale": "^4.0.2",
     "lucide-react": "^1.6.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "recharts": "^3.8.0"
+    "react-simple-maps": "^3.0.0",
+    "recharts": "^3.8.0",
+    "zip-state": "^1.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

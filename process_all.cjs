@@ -53,6 +53,8 @@ async function processFile(filePath, outStream, weatherMap) {
     if (!startDate || !startTime || !startTime.includes(':')) continue;
     
     let maxTemp = '';
+    let precip = '';
+    let aqi = '';
     // Apply dynamic weather fetching based on the date
     const parts = startDate.split('/');
     if (parts.length === 3) {
@@ -60,8 +62,10 @@ async function processFile(filePath, outStream, weatherMap) {
       let d = parts[1].padStart(2, '0');
       let y = parts[2];
       const formattedDate = `${y}-${m}-${d}`;
-      if (weatherMap[formattedDate] !== undefined && weatherMap[formattedDate] !== null) {
-        maxTemp = weatherMap[formattedDate];
+      if (weatherMap[formattedDate]) {
+        maxTemp = weatherMap[formattedDate].maxTemp;
+        precip = weatherMap[formattedDate].precip;
+        aqi = weatherMap[formattedDate].aqi;
       }
     }
 
@@ -77,25 +81,61 @@ async function processFile(filePath, outStream, weatherMap) {
       totalQty = '1';
     }
 
-    outStream.write(`"${startDate}","${startTime}","${zipCode}","${totalQty}","${maxTemp}"\n`);
+    outStream.write(`"${startDate}","${startTime}","${zipCode}","${totalQty}","${maxTemp}","${precip}","${aqi}"\n`);
     valid++;
   }
   console.log(`Processed: \x1b[36m${path.basename(filePath)}\x1b[0m -> extracted \x1b[32m${valid}\x1b[0m hikers`);
 }
 
 async function main() {
-  console.log('Fetching historical weather data from Open-Meteo...');
+  console.log('Fetching historical weather and air quality data from Open-Meteo...');
   const weatherMap = {};
   try {
-    // Dynamic end_date up to today so the Open-Meteo archive API doesn't throw an out-of-range error
+    // Dynamic end_date up to today
     const today = new Date();
     const endDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=38.8576&longitude=-104.9304&start_date=2025-08-01&end_date=${endDateStr}&daily=temperature_2m_max&temperature_unit=fahrenheit&timezone=America%2FDenver`);
+    
+    // Fetch Main Weather (Temp + Rain)
+    const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=38.8576&longitude=-104.9304&start_date=2025-08-01&end_date=${endDateStr}&daily=temperature_2m_max,precipitation_sum&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=America%2FDenver`);
     const data = await res.json();
+    
+    // Fetch Air Quality (AQI) - Note: Air Quality API uses a different domain
+    const aqiRes = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=38.8576&longitude=-104.9304&start_date=2025-08-01&end_date=${endDateStr}&hourly=us_aqi&timezone=America%2FDenver`);
+    const aqiData = await aqiRes.json();
+
     if (data && data.daily && data.daily.time) {
       for (let i = 0; i < data.daily.time.length; i++) {
         const dateStr = data.daily.time[i];
-        weatherMap[dateStr] = data.daily.temperature_2m_max[i];
+        weatherMap[dateStr] = {
+          maxTemp: data.daily.temperature_2m_max[i],
+          precip: data.daily.precipitation_sum[i] || 0,
+          aqi: 0
+        };
+      }
+    }
+    
+    if (aqiData && aqiData.hourly && aqiData.hourly.time) {
+      // Calculate daily max AQI from hourly array
+      let currentDay = '';
+      let maxAqiForDay = 0;
+      for (let i = 0; i < aqiData.hourly.time.length; i++) {
+        const timeStr = aqiData.hourly.time[i]; // e.g. "2025-08-01T00:00"
+        if (!timeStr) continue;
+        const day = timeStr.split('T')[0];
+        const aqi = aqiData.hourly.us_aqi[i];
+        
+        if (day !== currentDay) {
+          if (currentDay && weatherMap[currentDay]) { 
+            weatherMap[currentDay].aqi = maxAqiForDay; 
+          }
+          currentDay = day;
+          maxAqiForDay = aqi || 0;
+        } else {
+          if (aqi > maxAqiForDay) maxAqiForDay = aqi;
+        }
+      }
+      if (currentDay && weatherMap[currentDay]) { 
+        weatherMap[currentDay].aqi = maxAqiForDay; 
       }
       console.log(`Fetched historical weather mapping for ${Object.keys(weatherMap).length} days.`);
     }
@@ -105,8 +145,8 @@ async function main() {
 
   const outStream = fs.createWriteStream(outputPath);
   
-  // Header matching compressed schema
-  outStream.write('StartDate,StartTime,ZipCode,TotalQty,MaxTemp_F\n');
+  // Header matching new expanded schema
+  outStream.write('StartDate,StartTime,ZipCode,TotalQty,MaxTemp_F,Precipitation,AQI\n');
 
   for (const file of files) {
     await processFile(file, outStream, weatherMap);

@@ -15,7 +15,7 @@ const files = [
 
 const outputPath = path.join(__dirname, 'public/master_data.csv');
 
-async function processFile(filePath, outStream) {
+async function processFile(filePath, outStream, weatherMap) {
   if (!fs.existsSync(filePath)) {
     console.warn(`File not found, skipping: ${filePath}`);
     return;
@@ -49,9 +49,21 @@ async function processFile(filePath, outStream) {
     let startTime = String(row[7] || '').trim();
     let address = String(row[12] || '').trim();
     let totalQty = String(row[15] || '').trim();
-    let maxTemp = row.length > 16 ? String(row[17] || '').trim() : '';
-
+    
     if (!startDate || !startTime || !startTime.includes(':')) continue;
+    
+    let maxTemp = '';
+    // Apply dynamic weather fetching based on the date
+    const parts = startDate.split('/');
+    if (parts.length === 3) {
+      let m = parts[0].padStart(2, '0');
+      let d = parts[1].padStart(2, '0');
+      let y = parts[2];
+      const formattedDate = `${y}-${m}-${d}`;
+      if (weatherMap[formattedDate] !== undefined && weatherMap[formattedDate] !== null) {
+        maxTemp = weatherMap[formattedDate];
+      }
+    }
 
     // Extract Zip
     let zipCode = '';
@@ -72,13 +84,31 @@ async function processFile(filePath, outStream) {
 }
 
 async function main() {
+  console.log('Fetching historical weather data from Open-Meteo...');
+  const weatherMap = {};
+  try {
+    // Dynamic end_date up to the end of the current year so it always just works
+    const endYear = new Date().getFullYear();
+    const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=38.8576&longitude=-104.9304&start_date=2025-08-01&end_date=${endYear}-12-31&daily=temperature_2m_max&temperature_unit=fahrenheit&timezone=America%2FDenver`);
+    const data = await res.json();
+    if (data && data.daily && data.daily.time) {
+      for (let i = 0; i < data.daily.time.length; i++) {
+        const dateStr = data.daily.time[i];
+        weatherMap[dateStr] = data.daily.temperature_2m_max[i];
+      }
+      console.log(`Fetched historical weather mapping for ${Object.keys(weatherMap).length} days.`);
+    }
+  } catch (err) {
+    console.error("Warning: Failed to fetch weather map", err.message);
+  }
+
   const outStream = fs.createWriteStream(outputPath);
   
   // Header matching compressed schema
   outStream.write('StartDate,StartTime,ZipCode,TotalQty,MaxTemp_F\n');
 
   for (const file of files) {
-    await processFile(file, outStream);
+    await processFile(file, outStream, weatherMap);
   }
 
   outStream.end();
